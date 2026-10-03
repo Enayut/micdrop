@@ -1,47 +1,88 @@
-# micdrop — Linux/Fedora voice-to-prompt controller
+# micdrop — voice-to-prompt controller for Fedora (GNOME/Wayland)
 
-Hold **Right Ctrl** to record from the microphone. Release it to transcribe the recording with Whisper, then automatically copy the resulting text to the clipboard and paste it at the current cursor position.
+Hold a hotkey to record from the microphone, release it, and the audio is
+transcribed with Whisper, cleaned up by a local LLM, then copied to the
+clipboard and pasted at the current cursor.
+
+Two modes, selected by the hotkey you hold:
+
+| Hotkey      | Mode      | What it does                                                                                      |
+| ----------- | --------- | ------------------------------------------------------------------------------------------------- |
+| Right Ctrl  | REFINE    | Fixes transcription errors, grammar, punctuation and filler. Preserves meaning, invents nothing.    |
+| Right Alt   | GENERATE  | Interprets the request and turns it into a useful, self-contained prompt. May expand/restructure.  |
+
+The mode is explicit application state — it is chosen by the hotkey and passed
+through the whole pipeline; it is never guessed from the text.
 
 ## Pipeline
 
 ```text
-Right Ctrl held
-    ↓
-Record microphone
-    16 kHz mono / sounddevice
-    ↓
-Right Ctrl released
-    ↓
-Whisper transcription
-    openai/whisper-base / English
-    ↓
-Copy to clipboard
-    wl-copy
-    ↓
-Paste at current cursor
-    ydotool / virtual Ctrl+V
+hotkey press (mode)
+   ↓
+AudioRecorder            sounddevice, 16 kHz mono, in-memory
+   ↓  hotkey release
+SpeechRecognizer          openai/whisper-base
+   ↓
+TextProcessor            Qwen/Qwen3-0.6B + LoRA adapter (local)
+   ↓
+OutputAdapter            wl-copy → ydotool Ctrl+V
 ```
 
-An LLM prompt-refinement stage is planned between Whisper and the clipboard/paste stage.
+A failure in any stage is logged clearly and skipped. The hotkey listener
+stays alive and the next hotkey press works normally.
 
-## Files
+## Architecture
 
-| File                 | Purpose                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| `main.py`            | Push-to-talk listener using evdev and the full recording → transcription → paste pipeline |
-| `clipboard_paste.py` | Clipboard copy, virtual paste, dependency checks, and self-test CLI                       |
-| `record.py`          | Standalone microphone recording test                                                      |
-| `transcribe.py`      | Standalone Whisper transcription test                                                     |
+The core is platform independent; Linux specifics live behind interfaces.
+
+```text
+micdrop/
+├── app/                    # core application logic (no platform imports)
+│   ├── pipeline.py         #   orchestration + per-stage error handling
+│   ├── modes.py            #   Mode enum: REFINE, GENERATE
+│   ├── config.py           #   dataclass config, TOML loading, env overrides
+│   └── errors.py           #   MicDropError + per-stage errors
+├── audio/
+│   ├── base.py             #   AudioRecorder   (ABC)
+│   └── recorder.py         #   SoundDeviceRecorder
+├── transcription/
+│   ├── base.py             #   SpeechRecognizer (ABC)
+│   └── whisper.py          #   WhisperRecognizer
+├── refinement/
+│   ├── base.py             #   TextProcessor   (ABC)
+│   ├── local_qwen.py       #   LocalQwenProcessor (Qwen3 + LoRA, default)
+│   ├── passthrough.py      #   PassthroughProcessor (provider "none")
+│   └── __init__.py         #   create_processor() provider registry
+├── output/
+│   └── base.py             #   OutputAdapter   (ABC)
+├── platform/
+│   ├── base.py             #   HotkeyManager   (ABC)
+│   └── linux/
+│       ├── keyboard.py     #   LinuxHotkeyManager  (evdev)
+│       └── clipboard.py    #   LinuxOutputAdapter  (wl-copy + ydotool)
+├── cli/main.py             # command line entry point / wiring
+└── tests/                  # unit tests (stdlib unittest)
+```
+
+`micdrop/app/pipeline.py` never imports evdev, ydotool, wl-copy or any other
+platform module — it only talks to `AudioRecorder`, `SpeechRecognizer`,
+`TextProcessor` and `OutputAdapter`. Adding Windows/macOS support means adding
+`WindowsHotkeyManager` / `MacHotkeyManager` and
+`WindowsOutputAdapter` / `MacOutputAdapter` plus a platform switch in
+`micdrop/cli/main.py`; the core pipeline does not change.
+
+## Install
+
+```bash
+python3 -m venv .venv
+./.venv/bin/pip install -e .        # or: pip install -r requirements
+```
 
 ## Fedora setup
-
-Install the required system packages:
 
 ```bash
 sudo dnf install wl-clipboard ydotool
 ```
-
-`micdrop` uses `ydotool` to generate the virtual `Ctrl+V` keypress on GNOME Wayland. The `ydotoold` daemon must run as a user service.
 
 Configure `/dev/uinput` so members of the `input` group can access it:
 
@@ -51,163 +92,119 @@ sudo tee /etc/udev/rules.d/80-uinput.rules
 
 sudo udevadm control --reload-rules
 sudo udevadm trigger /dev/uinput
+getent group input   # your user must be in it; log out/in after adding
 ```
 
-Make sure the current user belongs to the `input` group:
-
-```bash
-getent group input
-id
-```
-
-If necessary:
-
-```bash
-sudo usermod -aG input "$USER"
-```
-
-A logout/login may be required after adding the user to the group.
-
-Disable the system-level `ydotool` service:
+Enable the user-level `ydotoold` daemon (a system-level one must be disabled —
+the daemon needs `/dev/uinput` access as your user):
 
 ```bash
 sudo systemctl disable --now ydotool.service
-```
-
-Enable the user-level daemon:
-
-```bash
 systemctl --user enable --now ydotool.service
+systemctl --user status ydotool.service   # creates /run/user/$UID/.ydotool_socket
 ```
 
-Verify it:
+## Usage
 
 ```bash
-systemctl --user status ydotool.service
+./.venv/bin/python -m micdrop             # start the push-to-talk listener
+./.venv/bin/python -m micdrop run         # same thing, explicitly
 ```
 
-The daemon should create:
+Install it to get a `micdrop` command: `./.venv/bin/pip install -e .`
 
-```text
-/run/user/$UID/.ydotool_socket
+## Commands
+
+| Command                | Purpose                                                                |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `micdrop run`          | The app: hotkey listener + full pipeline                               |
+| `micdrop self-test`    | Clipboard/paste dependency check + demo copy/paste                     |
+| `micdrop hotkey-test`  | Round-trips both hotkeys through evdev using `ydotool` (no models, no paste) |
+| `micdrop doctor`       | Checks packages, audio devices, keyboard device, clipboard tooling     |
+| `micdrop record-test`  | Records N seconds, reports RMS/peak levels                            |
+| `micdrop transcribe-test [file]` | Transcribes a WAV file with Whisper                          |
+| `micdrop refine-test --mode refine\|generate "text"` | Runs the text processor only       |
+| `micdrop config`       | Shows the effective configuration                                      |
+| `micdrop config --example` | Prints an example `micdrop.toml`                                   |
+
+## Configuration
+
+Copy `micdrop.toml.example` to `micdrop.toml` (or
+`~/.config/micdrop/config.toml`). All values are optional; missing keys fall
+back to defaults, unknown keys are ignored.
+
+```toml
+[hotkeys]
+refine = "KEY_RIGHTCTRL"
+generate = "KEY_RIGHTALT"
+device = "/dev/input/event3"     # auto-detected if unreadable
+
+[refinement]
+provider = "local_qwen"
+model_path = "Qwen/Qwen3-0.6B"
+
+[debug]
+enabled = false                  # true: keep recordings in ./debug/
 ```
 
-## Verify
+Hotkey names are evdev key names, so they are portable across keyboards. If the
+configured device cannot be opened, MicDrop auto-detects a keyboard that has
+the configured keys.
 
-First test the clipboard/paste subsystem:
+Environment overrides: `MICDROP_CONFIG` (config path), `MICDROP_DEBUG=1`,
+`MICDROP_ADAPTER` (LoRA adapter path).
+
+**API keys are never stored in source or config files.** The future Groq
+provider reads its key from `$GROQ_API_KEY` at runtime.
+
+## The refinement model
+
+`LocalQwenProcessor` loads `Qwen/Qwen3-0.6B` and, if present, a LoRA adapter
+from `$MICDROP_ADAPTER` or `./adapters/prompt-refiner-lora`. Adapter resolution
+and `peft` fallback behaviour are unchanged from the original
+`prompt_refiner.py`.
+
+A Groq/API provider only needs a new `TextProcessor` implementation plus one
+`elif` in `micdrop/refinement/__init__.py:create_processor()`.
+
+## Recordings and privacy
+
+Audio is captured into memory and passed to Whisper from there. **Nothing is
+written to disk** unless `[debug] enabled = true`, in which case recordings are
+kept in `debug/` for inspection.
+
+## Tests
 
 ```bash
-python clipboard_paste.py
+./.venv/bin/python -m unittest discover -s micdrop/tests -t .   # 42 unit tests
+./.venv/bin/python -m micdrop self-test                        # clipboard/paste
+./.venv/bin/python -m micdrop doctor
 ```
 
-It should report:
-
-```text
-Clipboard/paste dependencies: OK
-Clipboard updated.
-Pasted at cursor.
-Self-test OK.
-```
-
-Then run the complete voice pipeline:
-
-```bash
-python main.py
-```
-
-Hold **Right Ctrl**, speak, and release **Right Ctrl**. The transcription should be pasted into the currently focused application.
+Unit tests cover the platform-independent core: REFINE/GENERATE routing, empty
+transcription, transcription/processor/output failures, a successful pipeline,
+recording failures, hotkey→pipeline wiring, and configuration loading. They
+need no hardware and no models.
 
 ## Troubleshooting
 
 ### `ydotool` reports `Permission denied`
 
-Check the permissions on `/dev/uinput`:
-
 ```bash
-ls -ln /dev/uinput
+ls -ln /dev/uinput          # should be group `input`, mode 0660
+id                          # you must be in the `input` group
+sudo systemctl --user restart ydotool.service
 ```
 
-The device should be accessible by the `input` group, for example:
-
-```text
-crw-rw---- ... 0 104 ... /dev/uinput
-```
-
-Also verify that the current user belongs to the group:
+### Hotkey does nothing
 
 ```bash
-id
-```
-
-If the udev rule has been installed but the existing `/dev/uinput` device still has the wrong ownership, apply the permissions immediately:
-
-```bash
-sudo chown root:input /dev/uinput
-sudo chmod 660 /dev/uinput
-```
-
-Then restart the user daemon:
-
-```bash
-systemctl --user restart ydotool.service
-```
-
-### User daemon is not running
-
-Check:
-
-```bash
-systemctl --user status ydotool.service
-```
-
-View recent logs:
-
-```bash
-journalctl --user -u ydotool.service -n 30 --no-pager
-```
-
-Check that the user socket exists:
-
-```bash
-ls -l /run/user/$UID/.ydotool_socket
+./.venv/bin/python -m micdrop doctor      # checks the keyboard device
+./.venv/bin/python -m micdrop hotkey-test # verifies both hotkeys end to end
 ```
 
 ### Clipboard updates but nothing is pasted
 
-The text should still be available on the clipboard and can be pasted manually with `Ctrl+V`.
-
-First verify that `ydotoold` is running and that the socket exists. Some applications may also behave differently with synthetic keyboard input.
-
-## Current status
-
-The following components have been tested successfully:
-
-* Microphone recording with `sounddevice`
-* 16 kHz mono audio capture
-* Global Right Ctrl detection using `evdev`
-* Whisper transcription using `openai/whisper-base`
-* Wayland clipboard integration using `wl-copy`
-* Virtual `Ctrl+V` using `ydotool`
-* End-to-end clipboard/paste self-test
-
-## Planned
-
-The next major stage is local LLM prompt refinement:
-
-```text
-Speech
-  ↓
-Whisper
-  ↓
-Raw transcription
-  ↓
-Local LLM
-  ↓
-Clean / structured prompt
-  ↓
-Clipboard
-  ↓
-Paste at cursor
-```
-
-The intended local model is Qwen3 0.6B, allowing the system to turn natural spoken instructions into cleaner prompts before pasting them.
+The text is still on the clipboard; paste it manually with `Ctrl+V`. Check
+`systemctl --user status ydotool.service` and that the socket exists at
+`/run/user/$UID/.ydotool_socket`.

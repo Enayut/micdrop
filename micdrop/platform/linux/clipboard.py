@@ -1,10 +1,7 @@
-"""
-clipboard_paste.py
+"""Linux clipboard/paste output — Fedora GNOME Wayland.
 
-Put transcribed text on the Linux clipboard and paste it at the current
-cursor position, without the user touching the keyboard.
-
-Target platform: Fedora Linux, GNOME on Wayland.
+This is the existing clipboard_paste.py implementation, preserved (not
+redesigned) and wrapped in the OutputAdapter interface.
 
 Strategy:
   - Copy:   wl-copy (wl-clipboard) -- the standard Wayland clipboard tool.
@@ -15,10 +12,6 @@ Strategy:
 Failure handling: every step prints a clear, actionable error and returns
 False instead of raising, so a clipboard/paste problem can never break the
 recording loop.
-
-The public entry point is copy_and_paste(text). This module is intentionally
-self-contained so a future LLM prompt-refinement stage can be dropped between
-Whisper and copy_and_paste() without touching the rest of the pipeline.
 """
 
 import os
@@ -29,6 +22,9 @@ import sys
 import tempfile
 import time
 
+from ...app.config import OutputSettings
+from ...output.base import OutputAdapter
+
 
 # -----------------------------
 # Configuration
@@ -37,15 +33,16 @@ import time
 # Delay (seconds) between putting text on the clipboard and pressing Ctrl+V.
 # Clipboard managers (GNOME's, CopyQ, etc.) can grab the new selection
 # asynchronously; a short grace period avoids pasting the previous contents.
-PASTE_DELAY = 0.15
+DEFAULT_PASTE_DELAY = 0.15
 
 # Max seconds to wait on subprocesses before giving up.
-TOOL_TIMEOUT = 5
+DEFAULT_TOOL_TIMEOUT = 5
 
-# ydotoold's socket location varies between builds: newer upstream uses
-# /run/ydotoold/socket, Fedora's package defaults to /tmp/.ydotool_socket.
-# The client honors $YDOTOOL_SOCKET if set, so check that first.
+
 def _socket_candidates():
+    """ydotoold's socket location varies between builds: newer upstream uses
+    /run/ydotoold/socket, Fedora's package defaults to /tmp/.ydotool_socket.
+    The client honors $YDOTOOL_SOCKET if set, so check that first."""
     candidates = [
         os.environ.get("YDOTOOL_SOCKET"),
         # 1.0.4 client default: $XDG_RUNTIME_DIR/.ydotool_socket (user daemon)
@@ -57,6 +54,7 @@ def _socket_candidates():
         "/tmp/.ydotool_socket",
     ]
     return [pathlib.Path(c) for c in candidates if c]
+
 
 # Tools we need, with the Fedora package / setup that provides them.
 REQUIRED_TOOLS = {
@@ -140,7 +138,7 @@ def report_dependencies(stream=sys.stderr):
 # Clipboard (Wayland)
 # -----------------------------
 
-def copy_to_clipboard(text):
+def copy_to_clipboard(text, timeout=DEFAULT_TOOL_TIMEOUT):
     """
     Copy text to the Wayland clipboard via wl-copy.
 
@@ -155,7 +153,7 @@ def copy_to_clipboard(text):
         with tempfile.TemporaryFile(mode="w+") as errfile:
             proc = subprocess.run(
                 ["wl-copy", text],
-                timeout=TOOL_TIMEOUT,
+                timeout=timeout,
                 stdout=subprocess.DEVNULL,
                 stderr=errfile,
             )
@@ -188,7 +186,7 @@ def copy_to_clipboard(text):
 # Paste at cursor (virtual Ctrl+V)
 # -----------------------------
 
-def paste_at_cursor():
+def paste_at_cursor(timeout=DEFAULT_TOOL_TIMEOUT):
     """
     Paste by emitting Ctrl+V through ydotool (uinput virtual keyboard).
 
@@ -208,7 +206,7 @@ def paste_at_cursor():
                     "47:0",   # V up
                     "29:0",   # left Ctrl up
                 ],
-                timeout=TOOL_TIMEOUT,
+                timeout=timeout,
                 stdout=subprocess.DEVNULL,
                 stderr=errfile,
             )
@@ -243,7 +241,7 @@ def paste_at_cursor():
 # Full pipeline step
 # -----------------------------
 
-def copy_and_paste(text):
+def copy_and_paste(text, paste_delay=DEFAULT_PASTE_DELAY, timeout=DEFAULT_TOOL_TIMEOUT):
     """
     Copy text to the clipboard and paste it into the focused application.
 
@@ -265,15 +263,15 @@ def copy_and_paste(text):
             print("  - " + problem, file=sys.stderr)
         return False
 
-    if not copy_to_clipboard(text):
+    if not copy_to_clipboard(text, timeout=timeout):
         return False
 
     print("Clipboard updated.")
 
     # Give clipboard managers a moment to pick up the new selection.
-    time.sleep(PASTE_DELAY)
+    time.sleep(paste_delay)
 
-    if not paste_at_cursor():
+    if not paste_at_cursor(timeout=timeout):
         print(
             "Text is on the clipboard; you can paste it manually with Ctrl+V.",
             file=sys.stderr,
@@ -285,6 +283,31 @@ def copy_and_paste(text):
 
 
 # -----------------------------
+# OutputAdapter wrapper
+# -----------------------------
+
+class LinuxOutputAdapter(OutputAdapter):
+    """OutputAdapter backed by wl-copy + ydotool (unchanged behavior)."""
+
+    def __init__(self, settings: OutputSettings | None = None) -> None:
+        self.settings = settings or OutputSettings()
+
+    @property
+    def name(self) -> str:
+        return "linux clipboard (wl-copy + ydotool)"
+
+    def check_ready(self) -> list[str]:
+        return check_dependencies()
+
+    def deliver(self, text: str) -> bool:
+        return copy_and_paste(
+            text,
+            paste_delay=self.settings.paste_delay,
+            timeout=self.settings.tool_timeout,
+        )
+
+
+# -----------------------------
 # CLI: quick self-test
 # -----------------------------
 
@@ -292,7 +315,7 @@ if __name__ == "__main__":
     if not report_dependencies():
         sys.exit(1)
 
-    demo = "Clipboard test from clipboard_paste.py"
+    demo = "Clipboard test from micdrop.platform.linux.clipboard"
     print(f'Copying "{demo}" and pasting at cursor...')
     if copy_and_paste(demo):
         print("Self-test OK. Check the focused window for the text.")

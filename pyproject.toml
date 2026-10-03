@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "micdrop"
+version = "0.2.0"
+description = "Voice-to-prompt: push-to-talk -> Whisper -> LLM refinement/generation -> clipboard paste"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "sounddevice",
+    "soundfile",
+    "transformers",
+    "torch",
+    "peft",
+    "accelerate",
+    "evdev; sys_platform == 'linux'",
+]
+
+[project.scripts]
+micdrop = "micdrop.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["micdrop*"]

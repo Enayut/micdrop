@@ -1,0 +1,50 @@
+# MicDrop configuration (TOML).
+#
+# Copy this file to ./micdrop.toml (or ~/.config/micdrop/config.toml).
+# Every value shown is the default, so an empty file behaves identically.
+
+[audio]
+sample_rate = 16000
+channels = 1
+dtype = "float32"
+
+[hotkeys]
+# Push-to-talk: hold the key to record, release to process.
+# Values are evdev key names. Change them freely, e.g. KEY_F9 / KEY_F10.
+refine = "KEY_RIGHTCTRL"
+generate = "KEY_RIGHTALT"
+# Keyboard device. Auto-detected if the path is missing/unreadable.
+device = "/dev/input/event3"
+
+[refinement]
+# Text processor: local_qwen (default) | none (passthrough).
+# 'groq' is a planned API provider; its settings live in the [groq] section.
+provider = "local_qwen"
+
+# Speech-to-text.
+whisper_model = "openai/whisper-base"
+language = "english"
+
+# Local refinement model + LoRA adapter.
+model_path = "Qwen/Qwen3-0.6B"
+# Default: $MICDROP_ADAPTER, then ./adapters/prompt-refiner-lora.
+# adapter_path = "adapters/prompt-refiner-lora"
+
+max_new_tokens = 128
+
+[groq]
+# Placeholder for a future Groq TextProcessor. The API key is read from the
+# environment variable named below and is never stored in this file.
+enabled = false
+api_key_env = "GROQ_API_KEY"
+model = "llama-3.1-8b-instant"
+
+[output]
+paste_delay = 0.15   # grace period for clipboard managers (seconds)
+tool_timeout = 5.0   # wl-copy / ydotool timeout (seconds)
+
+[debug]
+# Recordings are held in memory only and are never written to disk unless
+# debug.enabled = true.
+enabled = false
+debug_dir = "debug"

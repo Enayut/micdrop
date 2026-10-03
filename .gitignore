@@ -1,2 +1,9 @@
 .venv/
+__pycache__/
+*.py[cod]
 test.wav
+debug/
+micdrop.toml
+*.egg-info/
+build/
+dist/

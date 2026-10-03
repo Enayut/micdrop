@@ -1,0 +1,110 @@
+{"text_prompt": "Please transcribe the clip.", "task": "asr", "prompt_type": "basic"}
+{"text_prompt": "Convert the spoken content into text.", "task": "asr", "prompt_type": "basic"}
+{"text_prompt": "Please transcribe the recorded content into a written format.", "task": "asr", "prompt_type": "formal"}
+{"text_prompt": "Kindly produce an accurate textual transcription of this recording.", "task": "asr", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you write out what's being said in this audio?", "task": "asr", "prompt_type": "informal"}
+{"text_prompt": "Please jot down everything you hear in this clip.", "task": "asr", "prompt_type": "informal"}
+{"text_prompt": "Please listen to the entire audio clip and provide a complete, accurate transcription of all spoken words.", "task": "asr", "prompt_type": "detailed"}
+{"text_prompt": "Kindly convert the full spoken content of this recording into a clear and precise text transcript.", "task": "asr", "prompt_type": "detailed"}
+{"text_prompt": "Please transcribe.", "task": "asr", "prompt_type": "short"}
+{"text_prompt": "Transcribe this clip.", "task": "asr", "prompt_type": "short"}
+{"text_prompt": "Please translate the recording into English.", "task": "st", "prompt_type": "basic"}
+{"text_prompt": "Convert the conversation into English.", "task": "st", "prompt_type": "basic"}
+{"text_prompt": "Please translate the audio content into English with high accuracy.", "task": "st", "prompt_type": "formal"}
+{"text_prompt": "Kindly provide a precise translation into English.", "task": "st", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you translate what they're saying into English?", "task": "st", "prompt_type": "informal"}
+{"text_prompt": "Please turn this audio into English for me.", "task": "st", "prompt_type": "informal"}
+{"text_prompt": "Please listen to the full audio file and provide a complete, accurate translation of all spoken content into English.", "task": "st", "prompt_type": "detailed"}
+{"text_prompt": "Kindly convert the entire spoken content of this recording into a clear and faithful English translation, preserving meaning and tone.", "task": "st", "prompt_type": "detailed"}
+{"text_prompt": "Translate into English.", "task": "st", "prompt_type": "short"}
+{"text_prompt": "In English, please.", "task": "st", "prompt_type": "short"}
+{"text_prompt": "Please answer the question based on the clip: <question>.", "task": "sqa", "prompt_type": "basic"}
+{"text_prompt": "Listen to the recording and provide the answer to: <question>.", "task": "sqa", "prompt_type": "basic"}
+{"text_prompt": "Kindly listen to the provided recording and supply an accurate answer to the following question: <question>.", "task": "sqa", "prompt_type": "formal"}
+{"text_prompt": "Please analyze the audio content and deliver a precise response to the question: <question>.", "task": "sqa", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you listen to this and tell me the answer to <question>?", "task": "sqa", "prompt_type": "informal"}
+{"text_prompt": "Give the clip a listen and let me know the answer to this: <question>.", "task": "sqa", "prompt_type": "informal"}
+{"text_prompt": "Please carefully listen to the entire audio clip and provide a complete and context-aware answer to the question: <question>.", "task": "sqa", "prompt_type": "detailed"}
+{"text_prompt": "Using all relevant information from the recording, deliver a clear and well-reasoned answer to this question: <question>.", "task": "sqa", "prompt_type": "detailed"}
+{"text_prompt": "What is the answer: <question>.", "task": "sqa", "prompt_type": "short"}
+{"text_prompt": "Listen and answer: <question>.", "task": "sqa", "prompt_type": "short"}
+{"text_prompt": "Please summarize the recording.", "task": "ssum", "prompt_type": "basic"}
+{"text_prompt": "Provide a brief summary of the content.", "task": "ssum", "prompt_type": "basic"}
+{"text_prompt": "Kindly listen to this and produce a concise and accurate summary.", "task": "ssum", "prompt_type": "formal"}
+{"text_prompt": "Please generate a well-structured summary of the audio clip.", "task": "ssum", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you listen to this and tell me the main points?", "task": "ssum", "prompt_type": "informal"}
+{"text_prompt": "Give this clip a listen and sum it up for me.", "task": "ssum", "prompt_type": "informal"}
+{"text_prompt": "Please listen to the full recording and provide a comprehensive summary capturing all key ideas, themes, and important details.", "task": "ssum", "prompt_type": "detailed"}
+{"text_prompt": "Create a clear, well-organized summary of the recording, highlighting major points, supporting information, and any conclusions mentioned.", "task": "ssum", "prompt_type": "detailed"}
+{"text_prompt": "Summarize.", "task": "ssum", "prompt_type": "short"}
+{"text_prompt": "Give a short summary.", "task": "ssum", "prompt_type": "short"}
+{"text_prompt": "Please interpret the meaning of the spoken clip.", "task": "slu", "prompt_type": "basic"}
+{"text_prompt": "Extract the intent and key information from this recording.", "task": "slu", "prompt_type": "basic"}
+{"text_prompt": "Kindly analyze the spoken content and provide the detected intent along with relevant entities.", "task": "slu", "prompt_type": "formal"}
+{"text_prompt": "Please perform spoken language understanding on this recording and produce its semantic interpretation.", "task": "slu", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you figure out what the speaker wants from this clip?", "task": "slu", "prompt_type": "informal"}
+{"text_prompt": "Listen to this and tell me the intent and important details.", "task": "slu", "prompt_type": "informal"}
+{"text_prompt": "Please listen to the complete recording and provide a full semantic interpretation, including intent, key entities, and any relevant contextual information.", "task": "slu", "prompt_type": "detailed"}
+{"text_prompt": "Analyze the recording and deliver a structured SLU output that captures the speaker's intent, slots, entities, and any additional semantic cues.", "task": "slu", "prompt_type": "detailed"}
+{"text_prompt": "Extract intent and entities.", "task": "slu", "prompt_type": "short"}
+{"text_prompt": "Do SLU on this audio.", "task": "slu", "prompt_type": "short"}
+{"text_prompt": "Please convert this text into speech.", "task": "tts", "prompt_type": "basic"}
+{"text_prompt": "Generate spoken audio from the following text.", "task": "tts", "prompt_type": "basic"}
+{"text_prompt": "Kindly produce a natural-sounding speech rendition of the provided text.", "task": "tts", "prompt_type": "formal"}
+{"text_prompt": "Please synthesize this text into clear and accurate audio output.", "task": "tts", "prompt_type": "formal"}
+{"text_prompt": "Hey, read this text out loud.", "task": "tts", "prompt_type": "informal"}
+{"text_prompt": "Generate speech from this.", "task": "tts", "prompt_type": "informal"}
+{"text_prompt": "Please convert the entire text into speech, maintaining proper intonation, pauses, and emphasis for a natural delivery.", "task": "tts", "prompt_type": "detailed"}
+{"text_prompt": "Generate a high-quality spoken version of the text, capturing nuances, punctuation, and expressive tone.", "task": "tts", "prompt_type": "detailed"}
+{"text_prompt": "Text to speech.", "task": "tts", "prompt_type": "short"}
+{"text_prompt": "Speak this text.", "task": "tts", "prompt_type": "short"}
+{"text_prompt": "Please translate this clip into English speech.", "task": "s2st", "prompt_type": "basic"}
+{"text_prompt": "Convert the spoken content into English audio.", "task": "s2st", "prompt_type": "basic"}
+{"text_prompt": "Kindly produce a spoken translation of this recording in English.", "task": "s2st", "prompt_type": "formal"}
+{"text_prompt": "Please generate an accurate English speech rendition of the provided recording.", "task": "s2st", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you turn this into English audio?", "task": "s2st", "prompt_type": "informal"}
+{"text_prompt": "Make this clip speak in English.", "task": "s2st", "prompt_type": "informal"}
+{"text_prompt": "Please listen to the full recording and provide a natural, contextually accurate spoken translation in English, preserving tone and meaning.", "task": "s2st", "prompt_type": "detailed"}
+{"text_prompt": "Generate a high-quality English speech version of this recording, maintaining intonation, emphasis, and any expressive cues.", "task": "s2st", "prompt_type": "detailed"}
+{"text_prompt": "Translate to English speech.", "task": "s2st", "prompt_type": "short"}
+{"text_prompt": "S2ST: English.", "task": "s2st", "prompt_type": "short"}
+{"text_prompt": "Please translate the text to English.", "task": "mt", "prompt_type": "basic"}
+{"text_prompt": "Convert this text into English.", "task": "mt", "prompt_type": "basic"}
+{"text_prompt": "Kindly provide an accurate translation of the following text to English.", "task": "mt", "prompt_type": "formal"}
+{"text_prompt": "Please translate this text into English, preserving its meaning and tone.", "task": "mt", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you translate this into English?", "task": "mt", "prompt_type": "informal"}
+{"text_prompt": "Turn this into English for me.", "task": "mt", "prompt_type": "informal"}
+{"text_prompt": "Please translate the full text to English, maintaining clarity, context, and natural phrasing.", "task": "mt", "prompt_type": "detailed"}
+{"text_prompt": "Provide a high-quality translation of this text, preserving idiomatic expressions and the intended meaning to English.", "task": "mt", "prompt_type": "detailed"}
+{"text_prompt": "Translate to English.", "task": "mt", "prompt_type": "short"}
+{"text_prompt": "MT: English.", "task": "mt", "prompt_type": "short"}
+{"text_prompt": "Please summarize the text.", "task": "tsum", "prompt_type": "basic"}
+{"text_prompt": "Provide a brief summary.", "task": "tsum", "prompt_type": "basic"}
+{"text_prompt": "Kindly generate a concise and accurate summary of the following text.", "task": "tsum", "prompt_type": "formal"}
+{"text_prompt": "Please produce a well-structured summary of the text.", "task": "tsum", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you tell me the main points of this text?", "task": "tsum", "prompt_type": "informal"}
+{"text_prompt": "Give this a read and sum it up for me.", "task": "tsum", "prompt_type": "informal"}
+{"text_prompt": "Please create a comprehensive summary of the text, capturing all key ideas, supporting details, and conclusions.", "task": "tsum", "prompt_type": "detailed"}
+{"text_prompt": "Analyze the text and provide a detailed, well-organized summary highlighting major points and important information.", "task": "tsum", "prompt_type": "detailed"}
+{"text_prompt": "Summarize this.", "task": "tsum", "prompt_type": "short"}
+{"text_prompt": "Give a short summary.", "task": "tsum", "prompt_type": "short"}
+{"text_prompt": "Please transcribe the speech from the video.", "task": "lipread", "prompt_type": "basic"}
+{"text_prompt": "Write down what the person is saying in this video.", "task": "lipread", "prompt_type": "basic"}
+{"text_prompt": "Kindly provide an accurate transcription of the speech based on the speaker's lip movements in this video.", "task": "lipread", "prompt_type": "formal"}
+{"text_prompt": "Please analyze the video and generate a precise text transcription of the spoken content.", "task": "lipread", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you tell me what they're saying by watching their lips?", "task": "lipread", "prompt_type": "informal"}
+{"text_prompt": "Watch this video and write down the words being spoken.", "task": "lipread", "prompt_type": "informal"}
+{"text_prompt": "Please carefully observe the speaker's lip movements throughout the video and provide a full and accurate transcription of all spoken words.", "task": "lipread", "prompt_type": "detailed"}
+{"text_prompt": "Generate a comprehensive text transcription based on the lip movements in the video, capturing every spoken word and context as accurately as possible.", "task": "lipread", "prompt_type": "detailed"}
+{"text_prompt": "Transcribe from lips.", "task": "lipread", "prompt_type": "short"}
+{"text_prompt": "Lipread and write.", "task": "lipread", "prompt_type": "short"}
+{"text_prompt": "Please divide the audio into chapters and provide a clear title for each chapter. Also produce the transcript, organized under each chapter. Use Markdown headings for chapter titles (e.g., ## Chapter Title) and separate each chapter with newlines.", "task": "achap", "prompt_type": "basic"}
+{"text_prompt": "Create segments for this audio and assign a descriptive title to each segment. Also include the transcript, grouped by segment. Format segment titles as Markdown headings and put a newline between segments.", "task": "achap", "prompt_type": "basic"}
+{"text_prompt": "Kindly analyze the audio and generate well-defined chapters with descriptive titles for each one based on its content, and also provide the full transcript organized under the corresponding chapters. Please format chapter titles as Markdown headings and separate each chapter with a blank line.", "task": "achap", "prompt_type": "formal"}
+{"text_prompt": "Please segment the audio into logical sections and provide chapter markers with titles for each section, along with the transcript text arranged under each chapter. Use Markdown headings for the chapter titles and ensure there is a newline between chapters.", "task": "achap", "prompt_type": "formal"}
+{"text_prompt": "Hey, can you split this audio into parts, give each part a title, and include the transcript under each part? Use Markdown headings for the titles and put a blank line between parts.", "task": "achap", "prompt_type": "informal"}
+{"text_prompt": "Break the audio into chapters for me, including a title and the transcript for each chapter. Format the titles as Markdown headings and separate each chapter with a newline.", "task": "achap", "prompt_type": "informal"}
+{"text_prompt": "Please watch the audio and divide it into chapters based on function, topic, scene transitions, and key content. For each chapter, provide a descriptive title and the transcript of that chapter. Use Markdown headings for the chapter titles (e.g., ## Introduction) and separate each chapter with a blank line.", "task": "achap", "prompt_type": "detailed"}
+{"text_prompt": "Generate a detailed chapter-wise segmentation of the audio, describing the content of each section, and giving each chapter a clear title. Also include the transcript, organized under each chapter. Format chapter titles as Markdown headings (e.g., ## Introduction) and insert a newline between chapters.", "task": "achap", "prompt_type": "detailed"}
+{"text_prompt": "Transcript + Chapters in Markdown (headings for titles, blank line between chapters).", "task": "achap", "prompt_type": "short"}
+{"text_prompt": "Transcript with added audio chapters. Use Markdown headings for chapter titles and newlines between chapters.", "task": "achap", "prompt_type": "short"}

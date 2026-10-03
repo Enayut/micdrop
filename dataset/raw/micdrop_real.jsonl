@@ -1,0 +1,2 @@
+{"input": "so um create a fast api endpoint that that streams responses from a local qwen model", "output": "Create a FastAPI endpoint that streams responses from a local Qwen model.", "category": "real_recording"}
+{"input": "fix the docker compose file the post grass sql container keeps restarting", "output": "Fix the Docker Compose file; the PostgreSQL container keeps restarting.", "category": "real_recording"}

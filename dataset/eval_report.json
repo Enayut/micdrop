@@ -1,0 +1,182 @@
+{
+  "generated_at": "2026-09-25T13:02:10.280887+00:00",
+  "rng_seed": 20260925,
+  "totals": {
+    "train": 1095,
+    "validation": 152,
+    "test": 153
+  },
+  "total_examples": 1400,
+  "per_category": {
+    "train": {
+      "repetition": 194,
+      "technical_correction": 122,
+      "speech_correction": 220,
+      "filler_removal": 349,
+      "speech_style_normalization": 45,
+      "programming": 51,
+      "clean_simple": 55,
+      "file_paths": 3,
+      "multi_part": 11,
+      "mixed_noise": 9,
+      "numbers_versions": 25,
+      "commands": 6,
+      "real_recording": 1,
+      "questions": 4
+    },
+    "validation": {
+      "programming": 6,
+      "filler_removal": 51,
+      "speech_correction": 19,
+      "technical_correction": 23,
+      "repetition": 30,
+      "numbers_versions": 6,
+      "speech_style_normalization": 6,
+      "multi_part": 2,
+      "clean_simple": 5,
+      "long_requests": 1,
+      "mixed_noise": 1,
+      "commands": 2
+    },
+    "test": {
+      "technical_correction": 17,
+      "speech_correction": 31,
+      "filler_removal": 49,
+      "clean_simple": 6,
+      "numbers_versions": 12,
+      "repetition": 27,
+      "real_recording": 1,
+      "speech_style_normalization": 5,
+      "long_requests": 1,
+      "questions": 1,
+      "programming": 3
+    }
+  },
+  "per_source": {
+    "train": {
+      "oasst1": 229,
+      "magicoder": 149,
+      "dolly": 205,
+      "codealpaca": 226,
+      "dowis": 45,
+      "micdrop_seed": 240,
+      "micdrop_real": 1
+    },
+    "validation": {
+      "codealpaca": 33,
+      "dolly": 38,
+      "micdrop_seed": 24,
+      "oasst1": 32,
+      "magicoder": 19,
+      "dowis": 6
+    },
+    "test": {
+      "dolly": 42,
+      "micdrop_seed": 15,
+      "oasst1": 34,
+      "codealpaca": 34,
+      "micdrop_real": 1,
+      "magicoder": 22,
+      "dowis": 5
+    }
+  },
+  "synthetic_vs_real": {
+    "train": {
+      "synthetic": 1021,
+      "real_seed_clean": 74
+    },
+    "validation": {
+      "synthetic": 147,
+      "real_seed_clean": 5
+    },
+    "test": {
+      "synthetic": 146,
+      "real_seed_clean": 7
+    }
+  },
+  "duplicates_removed": {
+    "total": 2494,
+    "dropped_exact_duplicate": 44,
+    "kept": 2338,
+    "dropped_near_duplicate_variant": 112,
+    "final": 2338
+  },
+  "length_stats": {
+    "train": {
+      "input_chars": {
+        "min": 14,
+        "max": 325,
+        "mean": 91.3,
+        "p95": 190
+      },
+      "output_chars": {
+        "min": 13,
+        "max": 299,
+        "mean": 77.1,
+        "p95": 173
+      }
+    },
+    "validation": {
+      "input_chars": {
+        "min": 16,
+        "max": 327,
+        "mean": 90.2,
+        "p95": 182
+      },
+      "output_chars": {
+        "min": 13,
+        "max": 263,
+        "mean": 77.5,
+        "p95": 167
+      }
+    },
+    "test": {
+      "input_chars": {
+        "min": 18,
+        "max": 217,
+        "mean": 97.1,
+        "p95": 195
+      },
+      "output_chars": {
+        "min": 12,
+        "max": 198,
+        "mean": 82.7,
+        "p95": 174
+      }
+    }
+  },
+  "longest_inputs": [
+    {
+      "input": "Write a short story about how Adder a man no write a short story about how Adder a man with the power of teleportation films a YouTube prank video wherein he as",
+      "output": "Write a short story about how Adder, a man with the power of teleportation, films a YouTube prank video wherein he asks ",
+      "source": "oasst1"
+    },
+    {
+      "input": "I want you to no wait to act like an assistant for for for my own website You should be able uhm to answer questions regarding my skills and experience I will p",
+      "output": "I want you to act like an assistant for my own website. You should be able to answer questions regarding my skills and e",
+      "source": "oasst1"
+    },
+    {
+      "input": "Please discuss the point of view on how the democratization of no please discuss the point of view on how the democratization of AI can actually allow people to",
+      "output": "Please discuss the point of view on how the democratization of AI can actually allow people to defend themselves against",
+      "source": "oasst1"
+    }
+  ],
+  "shortest_inputs": [
+    {
+      "input": "What is a bank",
+      "output": "What is a bank?",
+      "source": "dolly"
+    },
+    {
+      "input": "What is fish oil",
+      "output": "What is fish oil?",
+      "source": "dolly"
+    },
+    {
+      "input": "Can we be lovers",
+      "output": "Can we be lovers?",
+      "source": "dolly"
+    }
+  ]
+}

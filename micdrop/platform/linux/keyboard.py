@@ -8,6 +8,8 @@ HotkeyManager interface:
 * auto-detects the keyboard device when the configured path is missing
 * callback errors are contained: a pipeline failure can never kill the
   listener loop; device errors reconnect instead of crashing
+
+Default binding: Right Ctrl = REFINE, Right Alt = GENERATE.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ import time
 from typing import Optional
 
 from ...app.config import HotkeySettings
-from ...app.modes import Mode
+from ...app.modes import DISPLAY_NAMES, HOTKEY_KEYS, Mode, require_mode
 from ..base import HotkeyManager, PressCallback, ReleaseCallback
 
 logger = logging.getLogger("micdrop")
@@ -31,16 +33,75 @@ except ImportError:  # pragma: no cover - only on non-Linux dev machines
     KeyEvent = None
 
 
+def key_name_candidates(name: str) -> list[str]:
+    """Spellings of a configured hotkey name, most specific first.
+
+    A config may write a key the way a human says it ("Right Ctrl"), the way
+    evdev spells it ("KEY_RIGHTCTRL"), or anywhere in between. Rather than
+    guessing a single normalization, return the candidates and let the caller
+    pick the one that exists.
+    """
+    raw = (name or "").strip().upper()
+    if not raw:
+        raise ValueError("Hotkey name is empty. Use a key name like RIGHTCTRL or KEY_F5.")
+
+    underscored = raw.replace("-", "_").replace(" ", "_")
+    squashed = raw.replace("-", "").replace(" ", "")
+
+    forms = []
+    for form in (underscored, squashed):
+        prefixed = form if form.startswith("KEY_") else f"KEY_{form}"
+        if prefixed not in forms:
+            forms.append(prefixed)
+    return forms
+
+
+def normalize_key_name(name: str) -> str:
+    """Normalize a configured hotkey name to the evdev ``KEY_*`` spelling.
+
+    Both forms are accepted so a config can say what a human would write:
+
+        "RIGHTCTRL"     -> "KEY_RIGHTCTRL"
+        "KEY_RIGHTCTRL" -> "KEY_RIGHTCTRL"
+        "F5"            -> "KEY_F5"
+
+    Use :func:`key_name_candidates` when the exact spelling matters, since a
+    name like "Right Ctrl" is ambiguous without knowing the evdev table.
+    """
+    return key_name_candidates(name)[0]
+
+
 def resolve_key_code(name: str) -> int:
-    """Map an evdev key name (e.g. 'KEY_RIGHTCTRL') to its code."""
+    """Map a hotkey key name ('RIGHTCTRL', 'Right Ctrl' or 'KEY_RIGHTCTRL') to its code."""
     if evdev is None:
         raise RuntimeError("evdev is not available on this platform")
-    code = getattr(evdev.ecodes, name, None)
-    if code is None or not isinstance(code, int):
-        raise ValueError(
-            f"Unknown key name {name!r}. Use evdev key names like KEY_RIGHTCTRL."
-        )
-    return code
+
+    candidates = key_name_candidates(name)
+    for candidate in candidates:
+        code = getattr(evdev.ecodes, candidate, None)
+        if isinstance(code, int):
+            return code
+
+    raise ValueError(
+        f"Unknown key name {name!r} (tried {', '.join(candidates)}). "
+        "Use evdev key names like RIGHTCTRL or KEY_RIGHTCTRL."
+    )
+
+
+#: Side words that should render as their own word in the banner, so that
+#: "RIGHTCTRL" shows as "Right Ctrl" rather than "Rightctrl".
+_SIDE_WORDS = ("LEFT", "RIGHT")
+
+
+def pretty_key_name(name: str) -> str:
+    """'KEY_RIGHTCTRL' -> 'Right Ctrl', 'KEY_F5' -> 'F5'."""
+    core = (name or "").strip().upper().removeprefix("KEY_")
+    if not core:
+        return "(unset)"
+    for side in _SIDE_WORDS:
+        if core.startswith(side) and len(core) > len(side):
+            return f"{side.title()} {core[len(side):].title()}"
+    return core.title()
 
 
 def find_keyboard_device(required_keys: list[int]) -> Optional[str]:
@@ -119,16 +180,25 @@ class LinuxHotkeyManager(HotkeyManager):
     # -- HotkeyManager interface ----------------------------------------- #
 
     def register(self, mode: Mode, on_press: PressCallback, on_release: ReleaseCallback) -> None:
-        key_name = {
-            Mode.REFINE: self.settings.refine,
-            Mode.GENERATE: self.settings.generate,
-        }[mode]
+        """Bind one key to one mode.
+
+        Raises ValueError if the same key is bound to both modes — that would
+        make the two modes indistinguishable, which defeats the whole design.
+        """
+        require_mode(mode)
+
+        key_name = self.settings.key_for(mode)
         code = resolve_key_code(key_name)
         if code in self._bindings:
+            existing = self._bindings[code][0]
             raise ValueError(
-                f"Hotkey conflict: {key_name} is bound to more than one mode."
+                f"Hotkey conflict: {key_name} is bound to both "
+                f"{DISPLAY_NAMES[existing]} and {DISPLAY_NAMES[mode]}."
             )
         self._bindings[code] = (mode, on_press, on_release)
+        logger.debug(
+            "Bound %s to %s (code %d)", HOTKEY_KEYS[mode], DISPLAY_NAMES[mode], code
+        )
 
     def start(self) -> None:
         """Run the listener loop on the calling thread (blocks)."""
@@ -148,21 +218,24 @@ class LinuxHotkeyManager(HotkeyManager):
     def _open_device(self):
         """Open the configured keyboard, falling back to auto-detection."""
         required = list(self._bindings.keys())
-        path = self.settings.device
+        path = (self.settings.device or "").strip()
 
-        try:
-            device = evdev.InputDevice(path)
-            logger.info("Keyboard: %s (%s)", device.name, path)
-            return device
-        except (OSError, PermissionError) as exc:
-            logger.warning("Cannot open %s (%s); trying auto-detection.", path, exc)
+        if not path:
+            logger.info("No keyboard device configured; auto-detecting...")
+        else:
+            try:
+                device = evdev.InputDevice(path)
+                logger.info("Keyboard: %s (%s)", device.name, path)
+                return device
+            except (OSError, PermissionError) as exc:
+                logger.warning("Cannot open %s (%s); trying auto-detection.", path, exc)
 
         detected = find_keyboard_device(required)
         if detected is None:
             raise RuntimeError(
-                f"Could not open {path} and no keyboard with the configured "
-                "hotkey keys was auto-detected. Check the [hotkeys] device "
-                "setting and that your user can read /dev/input/*."
+                "No keyboard with the configured hotkey keys was found. Set "
+                "[hotkeys] device in micdrop.toml, and check that your user can "
+                "read the input devices."
             )
         device = evdev.InputDevice(detected)
         logger.info("Keyboard (auto-detected): %s (%s)", device.name, detected)

@@ -1,50 +1,62 @@
 # MicDrop configuration (TOML).
 #
-# Copy this file to ./micdrop.toml (or ~/.config/micdrop/config.toml).
-# Every value shown is the default, so an empty file behaves identically.
+# Copy to ./micdrop.toml (or ~/.config/micdrop/micdrop.toml), or just run:
+#     micdrop setup
+#
+# Every value shown is the default.
+
+[hotkeys]
+# Hold to record, release to process. Names may be written with or without the
+# "KEY_" prefix ("RIGHTCTRL" and "KEY_RIGHTCTRL" are the same key).
+refine = "RIGHTCTRL"        # Right Ctrl  -> REFINE
+generate = "RIGHTALT"       # Right Alt  -> GENERATE
+# device = "/dev/input/event3"  # omit to auto-detect the keyboard
+
+[models]
+# Text processor per mode. Known values: local_qwen, groq, none.
+# They are independent, so either mode can use a cloud provider while the other
+# stays local. Run `micdrop models` to see what is available.
+refine_provider = "local_qwen"
+generate_provider = "local_qwen"
+
+# Generation budget per mode. REFINE rewrites a sentence and stays close to its
+# length; GENERATE writes a whole artifact, so it needs more room.
+refine_max_new_tokens = 128
+generate_max_new_tokens = 512
+
+[models.local]
+# Model ids for the local_qwen provider.
+refine_model = "Qwen/Qwen3-0.6B"
+generate_model = "Qwen/Qwen3-0.6B"
+# adapter_path = "adapters/prompt-refiner-lora"   # default: $MICRODROP_ADAPTER or repo adapters/
+
+[models.groq]
+# Cloud provider settings. The API key is NOT stored here: it is read from the
+# MICRODROP_GROQ_API_KEY environment variable at runtime.
+api_key_env = "MICRODROP_GROQ_API_KEY"
+refine_model = "llama-3.3-70b-versatile"
+generate_model = "llama-3.3-70b-versatile"
+temperature = 0.0
+timeout = 30.0
 
 [audio]
 sample_rate = 16000
 channels = 1
 dtype = "float32"
-
-[hotkeys]
-# Push-to-talk: hold the key to record, release to process.
-# Values are evdev key names. Change them freely, e.g. KEY_F9 / KEY_F10.
-refine = "KEY_RIGHTCTRL"
-generate = "KEY_RIGHTALT"
-# Keyboard device. Auto-detected if the path is missing/unreadable.
-device = "/dev/input/event3"
+max_duration = 60.0    # safety cap; recording stops by itself after this
 
 [refinement]
-# Text processor: local_qwen (default) | none (passthrough).
-# 'groq' is a planned API provider; its settings live in the [groq] section.
-provider = "local_qwen"
-
 # Speech-to-text.
 whisper_model = "openai/whisper-base"
 language = "english"
 
-# Local refinement model + LoRA adapter.
-model_path = "Qwen/Qwen3-0.6B"
-# Default: $MICDROP_ADAPTER, then ./adapters/prompt-refiner-lora.
-# adapter_path = "adapters/prompt-refiner-lora"
-
-max_new_tokens = 128
-
-[groq]
-# Placeholder for a future Groq TextProcessor. The API key is read from the
-# environment variable named below and is never stored in this file.
-enabled = false
-api_key_env = "GROQ_API_KEY"
-model = "llama-3.1-8b-instant"
-
 [output]
-paste_delay = 0.15   # grace period for clipboard managers (seconds)
-tool_timeout = 5.0   # wl-copy / ydotool timeout (seconds)
+paste_delay = 0.15
+tool_timeout = 5.0
 
 [debug]
-# Recordings are held in memory only and are never written to disk unless
-# debug.enabled = true.
+# false: raw audio stays in memory only, and transcripts are neither logged
+#        nor written to disk. Microphone audio is never logged either way.
+# true:  recordings and transcripts are saved to debug_dir for inspection.
 enabled = false
 debug_dir = "debug"

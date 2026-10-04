@@ -1,17 +1,17 @@
-"""Local Qwen3-0.6B + LoRA text processor.
+"""Local Qwen3-0.6B (+ optional LoRA) text processor, bound to one mode.
 
 This is the existing prompt_refiner.py implementation, refactored behind the
-TextProcessor interface. The model is loaded lazily (not at import time) so
-that importing this module is cheap and testable.
+TextProcessor interface. Three changes matter beyond the original:
 
-Two modes:
+* It is constructed for a specific mode and refuses the other one, so the
+  REFINE prompt and the GENERATE prompt can never be swapped by accident.
+* The system prompt is looked up once at construction from
+  :mod:`micdrop.refinement.prompts`; there is no runtime prompt selection.
+* The model is loaded lazily and *once per model+adapter pair*, then shared, so
+  REFINE and GENERATE in one process do not hold two copies of the weights.
 
-* REFINE   — the original refinement system prompt: correct transcription
-  errors, fix grammar/punctuation, remove filler, strictly preserve meaning,
-  never invent information, output only the cleaned text.
-* GENERATE — interpret the spoken request and turn it into a useful final
-  prompt; may restructure and moderately expand, but must not answer or
-  execute the request itself.
+The generation budget also comes from the mode's config entry, since GENERATE
+has to emit a whole artifact and REFINE must stay near the input length.
 """
 
 from __future__ import annotations
@@ -19,65 +19,32 @@ from __future__ import annotations
 import logging
 import os
 import pathlib
-
-import torch
+import threading
 
 from ..app.config import ADAPTER_ENV_VAR, AppConfig
 from ..app.errors import ProcessingError
 from ..app.modes import Mode
 from .base import TextProcessor
+from .prompts import system_prompt_for
 
 logger = logging.getLogger("micdrop")
 
-REFINE_SYSTEM_PROMPT = """You are a prompt refinement engine.
+# Shared model cache: (model_name, adapter_path) -> (model, tokenizer). Two
+# mode-bound processors pointing at the same weights share one load.
+_MODEL_CACHE: dict[tuple[str, str | None], tuple[object, object]] = {}
+_MODEL_CACHE_LOCK = threading.Lock()
 
-You receive raw speech transcribed by Whisper.
 
-Your task:
-1. Correct obvious transcription errors.
-2. Fix grammar and punctuation.
-3. Preserve the user's exact intent.
-4. Make the request clear and concise.
-5. Do not answer the user's request.
-6. Do not add requirements that the user did not imply.
-7. Do not explain your changes.
-8. Do not include reasoning.
-9. Do not include <think> tags.
-10. Output ONLY the final refined prompt.
-
-Your entire response must contain only the refined prompt."""
-
-GENERATE_SYSTEM_PROMPT = """You are a prompt generation engine.
-
-You receive raw speech transcribed by Whisper. The speaker is dictating a
-request, task, or question out loud.
-
-Your task:
-1. Interpret what the speaker wants.
-2. Transform the raw speech into one clear, well-structured,
-   self-contained prompt.
-3. You may reorganize the wording, clarify the request, and moderately
-   expand it with standard, obviously-implied detail.
-4. Correct obvious transcription errors.
-5. Remove filler words and repetitions.
-6. Do not answer the request yourself. Do not execute it.
-7. Do not add requirements or constraints the speaker did not imply.
-8. Do not explain your changes. Do not include reasoning.
-9. Do not include <think> tags.
-10. Output ONLY the final generated prompt.
-
-Your entire response must contain only the generated prompt."""
-
-SYSTEM_PROMPTS = {
-    Mode.REFINE: REFINE_SYSTEM_PROMPT,
-    Mode.GENERATE: GENERATE_SYSTEM_PROMPT,
-}
+def clear_model_cache() -> None:
+    """Drop cached models. For tests and for freeing memory on shutdown."""
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE.clear()
 
 
 def find_adapter(explicit: str | None = None) -> str | None:
     """Locate a fine-tuned LoRA adapter, if one is installed.
 
-    Priority: explicit config value, then $MICDROP_ADAPTER, then
+    Priority: explicit config value, then $MICRODROP_ADAPTER, then
     adapters/prompt-refiner-lora in the repo. See training/COLAB.md for how
     to produce and install one.
     """
@@ -95,33 +62,40 @@ def find_adapter(explicit: str | None = None) -> str | None:
 
 
 class LocalQwenProcessor(TextProcessor):
-    """Qwen3-0.6B (optionally + LoRA adapter) running locally."""
+    """Qwen3-0.6B (optionally + LoRA adapter) running locally, for one mode."""
 
-    def __init__(self, config: AppConfig | None = None) -> None:
+    def __init__(self, config: AppConfig | None = None, mode: Mode = Mode.REFINE) -> None:
+        super().__init__(mode)
         config = config or AppConfig()
-        self.model_name = config.refinement.model_path
-        self.max_new_tokens = config.refinement.max_new_tokens
-        self.adapter_path = find_adapter(config.refinement.adapter_path)
-        self._tokenizer = None
+        # Per-mode model id from [models.local]; no model name is hardcoded here.
+        self.model_name = config.local.model_for(self.mode)
+        self.max_new_tokens = config.max_new_tokens_for(self.mode)
+        self.adapter_path = find_adapter(config.local.adapter_path or config.refinement.adapter_path)
+        # Bound at construction: this instance will only ever use this prompt.
+        self.system_prompt = system_prompt_for(self.mode)
         self._model = None
+        self._tokenizer = None
 
     @property
     def name(self) -> str:
         base = f"Qwen3 local ({self.model_name})"
-        return f"{base} + LoRA" if self.adapter_path else base
+        adapter = " + LoRA" if self.adapter_path else ""
+        return f"{base}{adapter} [{self.mode.value}]"
 
     def warmup(self) -> None:
         self._ensure_loaded()
 
     def process(self, text: str, mode: Mode) -> str:
+        # Mode check happens before any work, so a cross-mode call is a cheap,
+        # loud error rather than a slow, wrong one.
+        self._check_mode(mode)
         if not text or not text.strip():
             return ""
 
         self._ensure_loaded()
-        system_prompt = SYSTEM_PROMPTS[mode]
 
         try:
-            return self._generate(text, system_prompt)
+            return self._generate(text, self.system_prompt)
         except ProcessingError:
             raise
         except Exception as exc:  # noqa: BLE001 - model/runtime errors
@@ -133,11 +107,22 @@ class LocalQwenProcessor(TextProcessor):
         if self._model is not None:
             return
 
-        logger.info("Loading %s...", self.model_name)
+        cache_key = (self.model_name, self.adapter_path)
+        with _MODEL_CACHE_LOCK:
+            cached = _MODEL_CACHE.get(cache_key)
+            if cached is None:
+                cached = self._load_model()
+                _MODEL_CACHE[cache_key] = cached
+        self._model, self._tokenizer = cached
+
+    def _load_model(self):
+        """Load base model + optional adapter. Raises ProcessingError on failure."""
+        logger.info("Loading %s (mode: %s)...", self.model_name, self.mode.value)
         try:
+            import torch  # noqa: F401 - fail fast with a clear message
             from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_name,
                 torch_dtype="auto",
@@ -145,7 +130,8 @@ class LocalQwenProcessor(TextProcessor):
             )
         except Exception as exc:  # noqa: BLE001
             raise ProcessingError(
-                f"Could not load model {self.model_name!r}: {exc}"
+                f"Could not load model {self.model_name!r}: {exc}. "
+                "Is the model downloaded and are torch/transformers installed?"
             ) from exc
 
         if self.adapter_path:
@@ -167,10 +153,12 @@ class LocalQwenProcessor(TextProcessor):
                 self.model_name,
             )
 
-        self._model = model
         logger.info("Model loaded.")
+        return (model, tokenizer)
 
     def _generate(self, text: str, system_prompt: str) -> str:
+        import torch
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
@@ -198,10 +186,26 @@ class LocalQwenProcessor(TextProcessor):
             skip_special_tokens=True,
         ).strip()
 
-        # Safety cleanup in case the model still emits reasoning.
-        if "<think>" in result:
-            result = result.split("<think>", 1)[0].strip()
-        if "</think>" in result:
-            result = result.split("</think>", 1)[-1].strip()
+        return strip_reasoning(result)
 
-        return result
+
+def strip_reasoning(text: str) -> str:
+    """Remove <think> blocks and a whole-output code fence from model output.
+
+    Both prompts forbid reasoning, but small models emit it anyway. Stripping it
+    here means the failure mode is "slightly worse text", never "the user's
+    text plus a paragraph of model introspection pasted into their editor".
+    """
+    result = (text or "").strip()
+    if "</think>" in result:
+        # Keep whatever came after the closing tag: that is the answer.
+        result = result.split("</think>", 1)[-1].strip()
+    if "<think>" in result:
+        result = result.split("<think>", 1)[0].strip()
+    if result.startswith("```") and result.endswith("```") and result.count("```") == 2:
+        inner = result[3:-3].strip()
+        lines = inner.split("\n")
+        if len(lines) > 1 and not lines[0].strip():
+            inner = "\n".join(lines[1:]).strip()
+        result = inner
+    return result

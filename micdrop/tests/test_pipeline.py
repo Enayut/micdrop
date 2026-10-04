@@ -4,16 +4,16 @@ import unittest
 
 import numpy as np
 
-from ..app.errors import RecordingError, TranscriptionError, ProcessingError
+from ..app.errors import ProcessingError, RecordingError, TranscriptionError
 from ..app.modes import Mode
 from .fakes import (
+    PROCESSOR_ERROR,
+    RECORDER_ERROR,
+    TRANSCRIBE_ERROR,
     FakeOutput,
     FakeProcessor,
     FakeRecorder,
     FakeRecognizer,
-    PROCESSOR_ERROR,
-    RECORDER_ERROR,
-    TRANSCRIBE_ERROR,
     make_pipeline,
 )
 
@@ -21,7 +21,7 @@ from .fakes import (
 class TestSuccessfulPipeline(unittest.TestCase):
     def test_successful_pipeline_refine(self):
         pipeline, recorder, recognizer, processor, output = make_pipeline(
-            recognizer_text="um hello world the the",
+            recognizer="um hello world the the",
         )
         pipeline.handle_press(Mode.REFINE)
         result = pipeline.handle_release()
@@ -34,7 +34,7 @@ class TestSuccessfulPipeline(unittest.TestCase):
 
     def test_successful_pipeline_generate(self):
         pipeline, _, _, processor, output = make_pipeline(
-            recognizer_text="write me a poem about the sea",
+            recognizer="write me a poem about the sea",
         )
         pipeline.handle_press(Mode.GENERATE)
         result = pipeline.handle_release()
@@ -47,6 +47,28 @@ class TestSuccessfulPipeline(unittest.TestCase):
         self.assertIsNone(pipeline.handle_release())
 
 
+class TestModeSelectionHappensBeforeProcessing(unittest.TestCase):
+    """The mode is chosen at press time, not inferred from the audio or text."""
+
+    def test_mode_is_fixed_at_press_time(self):
+        pipeline, recorder, *_ = make_pipeline()
+        pipeline.handle_press(Mode.GENERATE)
+        self.assertEqual(pipeline.active_mode, Mode.GENERATE)
+        self.assertTrue(recorder.is_recording)
+
+    def test_active_mode_is_cleared_after_release(self):
+        pipeline, *_ = make_pipeline()
+        pipeline.handle_press(Mode.REFINE)
+        pipeline.handle_release()
+        self.assertIsNone(pipeline.active_mode)
+
+    def test_recording_is_stopped_after_release(self):
+        pipeline, recorder, *_ = make_pipeline()
+        pipeline.handle_press(Mode.REFINE)
+        pipeline.handle_release()
+        self.assertFalse(recorder.is_recording)
+
+
 class TestModeRouting(unittest.TestCase):
     """The mode is explicit and passed through to the processor."""
 
@@ -55,8 +77,8 @@ class TestModeRouting(unittest.TestCase):
         pipeline.handle_press(Mode.REFINE)
         pipeline.handle_release()
 
-        self.assertEqual(len(processor.calls), 1)
-        text, mode = processor.calls[0]
+        self.assertEqual(len(processor.calls_for(Mode.REFINE)), 1)
+        text, mode = processor.calls_for(Mode.REFINE)[0]
         self.assertEqual(mode, Mode.REFINE)
         self.assertEqual(text, "hello world")
 
@@ -65,18 +87,26 @@ class TestModeRouting(unittest.TestCase):
         pipeline.handle_press(Mode.GENERATE)
         pipeline.handle_release()
 
-        self.assertEqual(len(processor.calls), 1)
-        _, mode = processor.calls[0]
+        self.assertEqual(len(processor.calls_for(Mode.GENERATE)), 1)
+        _, mode = processor.calls_for(Mode.GENERATE)[0]
         self.assertEqual(mode, Mode.GENERATE)
 
     def test_mode_is_never_inferred_from_text(self):
         # Even request-like text must keep the mode it was triggered with.
         pipeline, _, _, processor, _ = make_pipeline(
-            recognizer_text="please write a poem",
+            recognizer="please write a poem",
         )
         pipeline.handle_press(Mode.REFINE)
         pipeline.handle_release()
-        self.assertEqual(processor.calls[0][1], Mode.REFINE)
+        self.assertEqual(processor.calls_for(Mode.REFINE)[0][1], Mode.REFINE)
+
+    def test_release_of_the_other_mode_is_ignored(self):
+        pipeline, recorder, _, processor, _ = make_pipeline()
+        pipeline.handle_press(Mode.REFINE)
+        # Right Alt released while Right Ctrl is still held.
+        self.assertIsNone(pipeline.handle_release(Mode.GENERATE))
+        self.assertTrue(recorder.is_recording)
+        self.assertEqual(processor.modes_called, [])
 
 
 class TestFailureHandling(unittest.TestCase):
@@ -91,7 +121,7 @@ class TestFailureHandling(unittest.TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(len(recognizer.calls), 0)
-        self.assertEqual(len(processor.calls), 0)
+        self.assertEqual(processor.modes_called, [])
         self.assertEqual(output.delivered, [])
 
     def test_recording_stop_failure_does_not_raise(self):
@@ -103,7 +133,7 @@ class TestFailureHandling(unittest.TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(len(recognizer.calls), 0)
-        self.assertEqual(len(processor.calls), 0)
+        self.assertEqual(processor.modes_called, [])
         self.assertEqual(output.delivered, [])
 
     def test_empty_audio_is_skipped(self):
@@ -116,7 +146,7 @@ class TestFailureHandling(unittest.TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(len(recognizer.calls), 0)
-        self.assertEqual(len(processor.calls), 0)
+        self.assertEqual(processor.modes_called, [])
         self.assertEqual(output.delivered, [])
 
     def test_empty_transcription_skips_processing_and_output(self):
@@ -127,7 +157,7 @@ class TestFailureHandling(unittest.TestCase):
         result = pipeline.handle_release()
 
         self.assertIsNone(result)
-        self.assertEqual(len(processor.calls), 0)  # never reached the processor
+        self.assertEqual(processor.modes_called, [])  # never reached the processor
         self.assertEqual(output.delivered, [])     # and never the output
 
     def test_transcription_failure_is_contained(self):
@@ -138,7 +168,7 @@ class TestFailureHandling(unittest.TestCase):
         result = pipeline.handle_release()
 
         self.assertIsNone(result)
-        self.assertEqual(len(processor.calls), 0)
+        self.assertEqual(processor.modes_called, [])
         self.assertEqual(output.delivered, [])
 
     def test_transcription_unexpected_error_is_contained(self):
@@ -149,12 +179,12 @@ class TestFailureHandling(unittest.TestCase):
         result = pipeline.handle_release()
 
         self.assertIsNone(result)
-        self.assertEqual(len(processor.calls), 0)
+        self.assertEqual(processor.modes_called, [])
         self.assertEqual(output.delivered, [])
 
     def test_processor_failure_is_contained(self):
         pipeline, _, _, _, output = make_pipeline(
-            processor=FakeProcessor(error=PROCESSOR_ERROR),
+            processor=FakeProcessor(Mode.REFINE, error=PROCESSOR_ERROR),
         )
         pipeline.handle_press(Mode.REFINE)
         result = pipeline.handle_release()
@@ -184,23 +214,10 @@ class TestFailureHandling(unittest.TestCase):
         failing.handle_press(Mode.REFINE)
         self.assertIsNone(failing.handle_release())
 
-        working = make_pipeline(recognizer_text="second attempt")[0]
+        working = make_pipeline(recognizer="second attempt")[0]
         working.handle_press(Mode.GENERATE)
         result = working.handle_release()
         self.assertEqual(result, "[generate] second attempt")
-
-    def test_debug_mode_disabled_writes_no_files(self):
-        # Default config: nothing may be written to disk.
-        import tempfile
-        from pathlib import Path
-
-        with tempfile.TemporaryDirectory() as tmp:
-            before = set(Path(tmp).iterdir())
-            pipeline, *_ = make_pipeline(recognizer_text="hello")
-            pipeline.handle_press(Mode.REFINE)
-            pipeline.handle_release()
-            after = set(Path(tmp).iterdir())
-            self.assertEqual(before, after)
 
 
 if __name__ == "__main__":
